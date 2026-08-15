@@ -1,21 +1,24 @@
 <#
 .SYNOPSIS
-    SHANECODES TECH HUB - FINAL LAUNCHER
+    SHANECODES TECH HUB - FINAL LAUNCHER v4.0
 .DESCRIPTION
-    Single source of truth. Downloads and executes modular functions.
+    Modular launcher. Downloads functions on-demand from GitHub.
 .EXAMPLE
     irm https://raw.githubusercontent.com/shanecodes-glitch/SHANECODES-FINAL-HUB/main/launcher.ps1 | iex
 .NOTES
     Author: Shane Nichael Obinguar
-    Version: 1.0.0
+    Version: 4.0.0
 #>
 
 #Requires -RunAsAdministrator
 
 # ── CONFIGURATION ──
-$script:REPO_URL = "https://raw.githubusercontent.com/shanecodes-glitch/SHANECODES-FINAL-HUB/main"
+$script:REPO_OWNER = "shanecodes-glitch"
+$script:REPO_NAME = "SHANECODES-FINAL-HUB"
+$script:BRANCH = "main"
+$script:REPO_URL = "https://raw.githubusercontent.com/$script:REPO_OWNER/$script:REPO_NAME/$script:BRANCH"
 $script:LOG_PATH = Join-Path $env:TEMP "ShaneCodes-TechHub.log"
-$script:VERSION = "1.0.0"
+$script:VERSION = "4.0.0"
 
 # ── LOGGING ──
 function Write-Log {
@@ -57,7 +60,7 @@ Write-Host @"
  |_____/ |_| \_| \_____|\____/  |_| \_| |_____| \_____||_| |_| |_| \_| |_|
                                                                            
 ═══════════════════════════════════════════════════════════════════════════════
-  SHANECODES TECH HUB  |  FINAL RELEASE v$script:VERSION  |  By Shane Nichael Obinguar
+  SHANECODES TECH HUB  |  FINAL v$script:VERSION  |  By Shane Nichael Obinguar
 ═══════════════════════════════════════════════════════════════════════════════
 "@
 Write-Log "SHANECODES TECH HUB v$script:VERSION started"
@@ -65,10 +68,8 @@ Write-Log "SHANECODES TECH HUB v$script:VERSION started"
 # ── CHECK ADMIN ──
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     Write-Warning "This utility must be run as Administrator."
-    Write-Warning "Please restart PowerShell as Administrator."
     Write-Log "Non-admin execution attempt" "WARNING"
-    Write-Host "`nPress any key to exit..."
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Read-Host "Press Enter to exit"
     exit 1
 }
 
@@ -82,12 +83,14 @@ function Show-MainMenu {
     Write-Host "  5.  🔄 Self-Update Tech Hub"
     Write-Host "  6.  📜 View Log"
     Write-Host "  7.  🧹 Clean Temporary Files"
-    Write-Host "  8.  ❌ Exit"
-    Write-Host "`n───────────────────────────────────────────────────────────────────────────────────────"
+    Write-Host "  8.  🚀 Run Original ShaneCodes Tools (Legacy)"
+    Write-Host "  9.  ❌ Exit"
+    Write-Host "`n───────────────────────────────────────────────────────────────────────"
     Write-Host "  Log: $script:LOG_PATH"
-    Write-Host "───────────────────────────────────────────────────────────────────────────────────────"
+    Write-Host "  Version: $script:VERSION"
+    Write-Host "───────────────────────────────────────────────────────────────────────"
 
-    $choice = Read-Host "`nEnter your choice (1-8)"
+    $choice = Read-Host "`nEnter your choice (1-9)"
 
     switch ($choice) {
         "1" { Invoke-Module "install-apps.ps1"; return $true }
@@ -98,6 +101,11 @@ function Show-MainMenu {
         "6" { Invoke-Module "view-log.ps1"; return $true }
         "7" { Invoke-Module "clean-temp.ps1"; return $true }
         "8" {
+            Write-Host "`n🚀 Loading Original ShaneCodes Tools..." -ForegroundColor Cyan
+            Invoke-Module "legacy-tools.ps1"
+            return $true
+        }
+        "9" {
             Write-Host "`nExiting SHANECODES TECH HUB. Goodbye!" -ForegroundColor Green
             Write-Log "User exited"
             exit 0
