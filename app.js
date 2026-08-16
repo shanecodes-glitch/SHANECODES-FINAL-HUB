@@ -8,7 +8,7 @@
 // ============================================================
 
 // 👇 PALITAN ITO NG SHEET.BEST API URL MO
-const SHEETBEST_URL = 'https://sheet.best/api/sheets/YOUR_API_KEY_HERE';
+const SHEETBEST_URL = 'https://api.sheetbest.com/sheets/3861fee0-3860-4bbc-a0fc-680c25450e87';
 
 // ============================================================
 // STATE
