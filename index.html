@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DIMENSION 666 — LAPTOP INVENTORY SYSTEM</title>
+    <title>DIMENSION 666 — LAPTOP INVENTORY</title>
     <style>
         /* ============================================================
            ROOT VARIABLES & RESET
@@ -687,21 +687,9 @@
             <p class="subtitle">Connect to Google Sheets for FREE cloud backup & team collaboration.</p>
 
             <div class="form-group">
-                <label>📤 Service Account JSON</label>
-                <textarea id="setupJson" placeholder='Paste your service account JSON here...'></textarea>
-                <div class="hint">Get this from Google Cloud Console > Service Accounts > Create Key (JSON)</div>
-            </div>
-
-            <div class="form-group">
-                <label>📊 Google Sheet ID</label>
-                <input type="text" id="setupSheetId" placeholder="e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
-                <div class="hint">Found in your sheet URL: docs.google.com/spreadsheets/d/<strong>THIS_IS_YOUR_ID</strong>/edit</div>
-            </div>
-
-            <div class="form-group" style="margin-top:8px;">
-                <label>📋 Sheet Name (optional)</label>
-                <input type="text" id="setupSheetName" placeholder="Laptops" value="Laptops">
-                <div class="hint">The tab name where data will be stored</div>
+                <label>📤 Google Sheets Web App URL</label>
+                <input type="text" id="setupScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" value="https://script.google.com/macros/s/AKfycbyb9g_Ry32osd4XnO9M04JkyKemzbIHFg0k4QStdyfLoolZP_n0qTi9pn0a2FyUcwxXew/exec">
+                <div class="hint">Your Google Apps Script Web App URL (already pre-filled!)</div>
             </div>
 
             <button class="btn btn-primary" onclick="connectGoogleSheets()">🔗 Connect & Start</button>
@@ -893,15 +881,12 @@
 
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- ============================================================
-    GOOGLE SHEETS API LIBRARY
-    ============================================================ -->
-    <script src="https://apis.google.com/js/api.js"></script>
-
-    <!-- ============================================================
-    APPLICATION LOGIC
-    ============================================================ -->
     <script>
+        // ============================================================
+        // GOOGLE SHEETS CONFIG — YOUR WEB APP URL IS PRE-CONFIGURED!
+        // ============================================================
+        let GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyb9g_Ry32osd4XnO9M04JkyKemzbIHFg0k4QStdyfLoolZP_n0qTi9pn0a2FyUcwxXew/exec';
+
         // ============================================================
         // STATE
         // ============================================================
@@ -910,14 +895,7 @@
         let sortField = 'model';
         let sortAsc = true;
         let editingId = null;
-
-        // Google Sheets Config
-        let gsConfig = {
-            connected: false,
-            serviceAccount: null,
-            sheetId: null,
-            sheetName: 'Laptops'
-        };
+        let gsConnected = false;
 
         // ============================================================
         // STORAGE KEYS
@@ -933,23 +911,29 @@
             loadFromStorage();
             loadGoogleConfig();
 
-            if (gsConfig.connected && gsConfig.serviceAccount && gsConfig.sheetId) {
+            if (gsConnected && GOOGLE_SCRIPT_URL) {
                 document.getElementById('mainApp').style.display = 'block';
                 document.getElementById('setupWizard').classList.remove('active');
                 updateSyncStatus('online', 'Google Sheets');
-                loadFromGoogleSheets();
             } else if (laptops.length > 0) {
                 document.getElementById('mainApp').style.display = 'block';
                 document.getElementById('setupWizard').classList.remove('active');
                 updateSyncStatus('disabled', 'Local Only');
             } else {
                 document.getElementById('setupWizard').classList.add('active');
+                // Pre-fill the URL
+                document.getElementById('setupScriptUrl').value = GOOGLE_SCRIPT_URL;
             }
 
             populateModelFilter();
             renderTable();
             updateDashboard();
             updatePartsSummary();
+
+            // Auto-load samples if empty
+            if (laptops.length === 0 && !document.getElementById('setupWizard').classList.contains('active')) {
+                setTimeout(loadSampleData, 500);
+            }
         });
 
         // ============================================================
@@ -959,52 +943,44 @@
             const data = localStorage.getItem(CONFIG_KEY);
             if (data) {
                 try {
-                    gsConfig = JSON.parse(data);
-                } catch (e) {
-                    gsConfig = { connected: false, serviceAccount: null, sheetId: null, sheetName: 'Laptops' };
-                }
+                    const config = JSON.parse(data);
+                    if (config.url) {
+                        GOOGLE_SCRIPT_URL = config.url;
+                        gsConnected = true;
+                    }
+                } catch (e) {}
             }
         }
 
-        function saveGoogleConfig() {
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(gsConfig));
+        function saveGoogleConfig(url) {
+            localStorage.setItem(CONFIG_KEY, JSON.stringify({ url: url }));
         }
 
         function connectGoogleSheets() {
-            const jsonText = document.getElementById('setupJson').value.trim();
-            const sheetId = document.getElementById('setupSheetId').value.trim();
-            const sheetName = document.getElementById('setupSheetName').value.trim() || 'Laptops';
+            const url = document.getElementById('setupScriptUrl').value.trim();
 
-            if (!jsonText || !sheetId) {
-                showToast('⚠️ Please provide both Service Account JSON and Sheet ID.', 'error');
+            if (!url) {
+                showToast('⚠️ Please enter your Google Apps Script URL.', 'error');
                 return;
             }
 
-            try {
-                const parsed = JSON.parse(jsonText);
-                if (!parsed.client_email || !parsed.private_key) {
-                    showToast('⚠️ Invalid service account JSON. Missing client_email or private_key.', 'error');
-                    return;
-                }
-
-                gsConfig.serviceAccount = jsonText;
-                gsConfig.sheetId = sheetId;
-                gsConfig.sheetName = sheetName;
-                gsConfig.connected = true;
-
-                saveGoogleConfig();
-                document.getElementById('setupWizard').classList.remove('active');
-                document.getElementById('mainApp').style.display = 'block';
-
-                updateSyncStatus('syncing', 'Connecting...');
-                showToast('✅ Google Sheets connected! Loading data...', 'success');
-
-                // Load data from Google Sheets
-                loadFromGoogleSheets();
-
-            } catch (e) {
-                showToast('⚠️ Invalid JSON format. Please check your service account file.', 'error');
+            if (!url.includes('script.google.com')) {
+                showToast('⚠️ Invalid URL. Should be: https://script.google.com/macros/s/.../exec', 'error');
+                return;
             }
+
+            GOOGLE_SCRIPT_URL = url;
+            gsConnected = true;
+            saveGoogleConfig(url);
+
+            document.getElementById('setupWizard').classList.remove('active');
+            document.getElementById('mainApp').style.display = 'block';
+
+            updateSyncStatus('online', 'Google Sheets');
+            showToast('✅ Google Sheets connected!', 'success');
+
+            // Try to load data from Google Sheets
+            loadFromGoogleSheets();
         }
 
         function skipSetup() {
@@ -1021,15 +997,7 @@
 
         function showSetup() {
             document.getElementById('setupWizard').classList.add('active');
-            if (gsConfig.serviceAccount) {
-                document.getElementById('setupJson').value = gsConfig.serviceAccount;
-            }
-            if (gsConfig.sheetId) {
-                document.getElementById('setupSheetId').value = gsConfig.sheetId;
-            }
-            if (gsConfig.sheetName) {
-                document.getElementById('setupSheetName').value = gsConfig.sheetName;
-            }
+            document.getElementById('setupScriptUrl').value = GOOGLE_SCRIPT_URL;
         }
 
         function updateSyncStatus(status, label) {
@@ -1053,177 +1021,134 @@
         }
 
         // ============================================================
-        // GOOGLE SHEETS API — LOAD DATA
+        // GOOGLE SHEETS SYNC FUNCTIONS
         // ============================================================
-        function loadFromGoogleSheets() {
-            if (!gsConfig.connected) return;
+
+        // ============================================================
+        // SYNC ALL DATA TO GOOGLE SHEETS
+        // ============================================================
+        async function syncToGoogleSheets() {
+            if (!GOOGLE_SCRIPT_URL) {
+                showToast('⚠️ Please configure Google Script URL first! Click the gear icon ⚙️', 'error');
+                return;
+            }
+
+            if (laptops.length === 0) {
+                showToast('⚠️ No data to sync!', 'error');
+                return;
+            }
+
+            updateSyncStatus('syncing', 'Uploading...');
+
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'sync',
+                        laptops: laptops
+                    })
+                });
+
+                showToast('✅ Sync complete! Check your Google Sheet.', 'success');
+                updateSyncStatus('online', 'Google Sheets');
+
+            } catch (error) {
+                showToast('⚠️ Sync failed: ' + error.message, 'error');
+                updateSyncStatus('offline', 'Error');
+            }
+        }
+
+        // ============================================================
+        // LOAD DATA FROM GOOGLE SHEETS
+        // ============================================================
+        async function loadFromGoogleSheets() {
+            if (!GOOGLE_SCRIPT_URL) {
+                showToast('⚠️ Please configure Google Script URL first!', 'error');
+                return;
+            }
 
             updateSyncStatus('syncing', 'Loading...');
 
-            // Simulate loading from Google Sheets
-            // In production, this would use the Google Sheets API with service account auth
-            // For now, we'll check if we have cached data
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL);
 
-            // Since client-side Google Sheets API with service account requires
-            // OAuth or JWT which is complex client-side, we use a simpler approach:
-            // We'll prompt user to manually import data from Google Sheets
-            // or use a serverless function (which we can't do on GitHub Pages)
+                if (!response.ok) {
+                    throw new Error('Failed to fetch data');
+                }
 
-            // For GitHub Pages, the easiest approach is:
-            // 1. User manually exports CSV from Google Sheets
-            // 2. User imports CSV into the app
-            // 3. Or we use a free service like Sheet.best or SheetDB
+                const result = await response.json();
 
-            // I'll implement the CSV import/export approach which works great on GitHub Pages
-
-            updateSyncStatus('online', 'Google Sheets (Manual Sync)');
-            showToast('ℹ️ Google Sheets connected. Use "Sync Now" to update.', 'info');
-        }
-
-        // ============================================================
-        // SYNC TO GOOGLE SHEETS (via CSV export/import)
-        // ============================================================
-        function syncToGoogleSheets() {
-            if (!gsConfig.connected) {
-                showToast('⚠️ Not connected to Google Sheets. Setup first.', 'error');
-                return;
-            }
-
-            // Export current data as CSV
-            const csv = generateCSV();
-            if (!csv) {
-                showToast('⚠️ No data to sync.', 'error');
-                return;
-            }
-
-            // Create a blob and let user download to import to Google Sheets
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `laptop_inventory_backup_${new Date().toISOString().slice(0,10)}.csv`;
-            link.click();
-            URL.revokeObjectURL(link.href);
-
-            showToast('📥 CSV downloaded. Import this to your Google Sheet!', 'success');
-
-            // Also show instructions
-            setTimeout(() => {
-                showToast('📊 Open your Google Sheet > File > Import > Upload this CSV', 'info');
-            }, 2000);
-        }
-
-        // ============================================================
-        // GENERATE CSV
-        // ============================================================
-        function generateCSV() {
-            if (laptops.length === 0) return null;
-
-            const headers = ['ID', 'Model', 'Serial', 'RAM', 'Storage', 'Addl Storage', 'Qty', 'Status', 'Days', 'Issue', 'Missing Parts', 'Notes', 'Timestamp'];
-            let csv = headers.join(',') + '\n';
-
-            laptops.forEach(l => {
-                const row = [
-                    l.id,
-                    `"${String(l.model || '').replace(/"/g, '""')}"`,
-                    `"${String(l.serial || '').replace(/"/g, '""')}"`,
-                    `"${String(l.ram || '').replace(/"/g, '""')}"`,
-                    `"${String(l.storage || '').replace(/"/g, '""')}"`,
-                    `"${String(l.additionalStorage || '').replace(/"/g, '""')}"`,
-                    l.quantity || 1,
-                    `"${String(l.status || '').replace(/"/g, '""')}"`,
-                    l.daysInProgress || 0,
-                    `"${String(l.issue || '').replace(/"/g, '""')}"`,
-                    `"${String(l.missingParts || '').replace(/"/g, '""')}"`,
-                    `"${String(l.notes || '').replace(/"/g, '""')}"`,
-                    `"${new Date().toISOString()}"`
-                ];
-                csv += row.join(',') + '\n';
-            });
-
-            return csv;
-        }
-
-        // ============================================================
-        // IMPORT FROM GOOGLE SHEETS (CSV Import)
-        // ============================================================
-        function importFromGoogleSheets() {
-            // Create a file input to import CSV
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.csv';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const text = event.target.result;
-                    const rows = text.split('\n').filter(row => row.trim());
-                    if (rows.length < 2) {
-                        showToast('⚠️ CSV is empty or invalid.', 'error');
-                        return;
-                    }
-
-                    // Parse CSV
-                    const headers = rows[0].split(',').map(h => h.replace(/"/g, '').trim());
-                    const imported = [];
-
-                    for (let i = 1; i < rows.length; i++) {
-                        const values = rows[i].split(',').map(v => v.replace(/^"|"$/g, '').trim());
-                        if (values.length < 2) continue;
-
-                        const obj = {};
-                        headers.forEach((h, idx) => {
-                            obj[h] = values[idx] || '';
-                        });
-
-                        if (obj.Model && obj.Serial) {
-                            imported.push({
-                                id: parseInt(obj.ID) || nextId++,
-                                model: obj.Model,
-                                serial: obj.Serial,
-                                ram: obj.RAM || '8GB',
-                                storage: obj.Storage || '256GB SSD',
-                                additionalStorage: obj['Addl Storage'] || '',
-                                quantity: parseInt(obj.Qty) || 1,
-                                status: obj.Status || 'pending',
-                                daysInProgress: parseInt(obj.Days) || 0,
-                                issue: obj.Issue || '',
-                                missingParts: obj['Missing Parts'] || '',
-                                notes: obj.Notes || ''
-                            });
-                        }
-                    }
+                if (result.success && result.laptops) {
+                    const imported = result.laptops;
 
                     if (imported.length === 0) {
-                        showToast('⚠️ No valid laptop entries found in CSV.', 'error');
+                        showToast('ℹ️ No data found in Google Sheet.', 'info');
+                        updateSyncStatus('online', 'Google Sheets');
                         return;
                     }
 
-                    // Merge with existing data
-                    const existingIds = new Set(laptops.map(l => l.id));
-                    imported.forEach(l => {
-                        if (!existingIds.has(l.id)) {
-                            laptops.push(l);
+                    const newLaptops = imported.map(l => ({
+                        id: parseInt(l.ID) || nextId++,
+                        model: l.Model || '',
+                        serial: l.Serial || '',
+                        ram: l.RAM || '8GB',
+                        storage: l.Storage || '256GB SSD',
+                        additionalStorage: l.Additional_Storage || '',
+                        quantity: parseInt(l.Quantity) || 1,
+                        status: l.Status || 'pending',
+                        daysInProgress: parseInt(l.Days) || 0,
+                        issue: l.Issue || '',
+                        missingParts: l.Missing_Parts || '',
+                        notes: l.Notes || ''
+                    }));
+
+                    if (laptops.length > 0) {
+                        const choice = confirm(
+                            `You have ${laptops.length} laptops locally.\n` +
+                            `Google Sheets has ${newLaptops.length} laptops.\n\n` +
+                            'Click OK to REPLACE local data with Google Sheets data.\n' +
+                            'Click Cancel to MERGE (keep both).'
+                        );
+
+                        if (choice) {
+                            laptops = newLaptops;
                         } else {
-                            // Update existing
-                            const idx = laptops.findIndex(ex => ex.id === l.id);
-                            if (idx !== -1) {
-                                laptops[idx] = { ...laptops[idx], ...l };
-                            }
+                            const existingIds = new Set(laptops.map(l => l.id));
+                            newLaptops.forEach(l => {
+                                if (!existingIds.has(l.id)) {
+                                    laptops.push(l);
+                                }
+                            });
                         }
-                    });
+                    } else {
+                        laptops = newLaptops;
+                    }
+
+                    const maxId = laptops.reduce((max, l) => Math.max(max, l.id || 0), 0);
+                    if (maxId >= nextId) nextId = maxId + 1;
 
                     saveToStorage();
                     populateModelFilter();
                     renderTable();
                     updateDashboard();
                     updatePartsSummary();
-                    showToast(`✅ Imported ${imported.length} laptops from Google Sheets!`, 'success');
-                };
-                reader.readAsText(file);
-            };
-            input.click();
+
+                    showToast(`✅ Loaded ${newLaptops.length} laptops from Google Sheets!`, 'success');
+                    updateSyncStatus('online', 'Google Sheets');
+                } else {
+                    showToast('⚠️ Failed to load data: ' + (result.error || 'Unknown error'), 'error');
+                    updateSyncStatus('offline', 'Error');
+                }
+
+            } catch (error) {
+                showToast('⚠️ Load failed: ' + error.message, 'error');
+                updateSyncStatus('offline', 'Error');
+                console.error('Load error:', error);
+            }
         }
 
         // ============================================================
@@ -1556,6 +1481,11 @@
             updateDashboard();
             updatePartsSummary();
             closeModal();
+
+            // Auto-sync to Google Sheets if connected
+            if (gsConnected) {
+                setTimeout(() => syncToGoogleSheets(), 500);
+            }
         }
 
         function deleteLaptop(id) {
@@ -1567,6 +1497,10 @@
             updateDashboard();
             updatePartsSummary();
             showToast('🗑️ Laptop deleted.', 'info');
+
+            if (gsConnected) {
+                setTimeout(() => syncToGoogleSheets(), 500);
+            }
         }
 
         // ============================================================
@@ -1578,8 +1512,26 @@
                 return;
             }
 
-            const csv = generateCSV();
-            if (!csv) return;
+            const headers = ['ID', 'Model', 'Serial', 'RAM', 'Storage', 'Addl Storage', 'Qty', 'Status', 'Days', 'Issue', 'Missing Parts', 'Notes'];
+            let csv = headers.join(',') + '\n';
+
+            laptops.forEach(l => {
+                const row = [
+                    l.id,
+                    `"${String(l.model || '').replace(/"/g, '""')}"`,
+                    `"${String(l.serial || '').replace(/"/g, '""')}"`,
+                    `"${String(l.ram || '').replace(/"/g, '""')}"`,
+                    `"${String(l.storage || '').replace(/"/g, '""')}"`,
+                    `"${String(l.additionalStorage || '').replace(/"/g, '""')}"`,
+                    l.quantity || 1,
+                    `"${String(l.status || '').replace(/"/g, '""')}"`,
+                    l.daysInProgress || 0,
+                    `"${String(l.issue || '').replace(/"/g, '""')}"`,
+                    `"${String(l.missingParts || '').replace(/"/g, '""')}"`,
+                    `"${String(l.notes || '').replace(/"/g, '""')}"`
+                ];
+                csv += row.join(',') + '\n';
+            });
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -1622,16 +1574,9 @@
             if (e.target === document.getElementById('modalOverlay')) closeModal();
         });
 
-        // ============================================================
-        // AUTO-LOAD SAMPLES IF EMPTY
-        // ============================================================
-        if (laptops.length === 0 && !document.getElementById('setupWizard').classList.contains('active')) {
-            setTimeout(loadSampleData, 500);
-        }
-
-        console.log('🖥️ Dimension 666 — Laptop Inventory System v2.0 (GitHub Pages Ready)');
-        console.log(`📦 ${laptops.length} laptops in inventory.`);
-        console.log('☁️ Google Sheets:', gsConfig.connected ? 'Connected' : 'Not connected');
+        console.log('🖥️ Dimension 666 — Laptop Inventory System v2.0');
+        console.log('📦 ' + laptops.length + ' laptops loaded.');
+        console.log('☁️ Google Sheets URL:', GOOGLE_SCRIPT_URL);
     </script>
 
 </body>
