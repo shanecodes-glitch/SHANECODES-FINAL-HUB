@@ -1,14 +1,15 @@
 // ============================================================
-// LAPTOP INVENTORY — SHEET.BEST VERSION
-// Simple, Reliable, No Authorization Issues!
+// SHANECODES INVENTORY — LAPTOP MANAGEMENT SYSTEM
+// Created by: Shane Nichael Obinguar
+// Version: 2.0
 // ============================================================
 
 // ============================================================
-// CONFIGURATION
+// CONFIGURATION — PALITAN ITO NG TAMANG URL
 // ============================================================
 
-// 👇 PALITAN ITO NG SHEET.BEST API URL MO
-const SHEETBEST_URL = 'https://api.sheetbest.com/sheets/3861fee0-3860-4bbc-a0fc-680c25450e87';
+// ✅ TAMANG URL FORMAT:
+const SHEETBEST_URL = 'https://sheet.best/api/sheets/3861fee0-3860-4bbc-a0fc-680c25450e87';
 
 // ============================================================
 // STATE
@@ -20,6 +21,7 @@ let sortField = 'model';
 let sortAsc = true;
 let editingId = null;
 let isConnected = false;
+let isSyncing = false;
 
 // ============================================================
 // DOM REFS
@@ -36,8 +38,8 @@ const rowCount = $('rowCount');
 // STORAGE KEYS
 // ============================================================
 
-const STORAGE_KEY = 'laptop_inventory_data';
-const ID_KEY = 'laptop_inventory_nextId';
+const STORAGE_KEY = 'shanecodes_inventory_data';
+const ID_KEY = 'shanecodes_inventory_nextId';
 
 // ============================================================
 // INIT
@@ -47,14 +49,28 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFromStorage();
     renderAll();
     updateSyncStatus('disabled', 'Local Only');
+    updateFooterYear();
+    updateAboutYear();
     
     if (laptops.length === 0) {
         setTimeout(loadSampleData, 500);
     }
     
-    console.log('🖥️ Laptop Inventory v2.0 (Sheet.best)');
+    console.log('🖥️ ShaneCodes Inventory v2.0');
+    console.log('👤 Created by Shane Nichael Obinguar');
     console.log(`📦 ${laptops.length} laptops loaded.`);
+    console.log('🔗 Sheet.best URL:', SHEETBEST_URL);
 });
+
+function updateFooterYear() {
+    const el = document.getElementById('footerYear');
+    if (el) el.textContent = new Date().getFullYear();
+}
+
+function updateAboutYear() {
+    const el = document.getElementById('yearDisplay');
+    if (el) el.textContent = new Date().getFullYear();
+}
 
 // ============================================================
 // STORAGE
@@ -108,6 +124,11 @@ function updateSyncStatus(status, label) {
 // ============================================================
 
 async function syncToGoogleSheets() {
+    if (isSyncing) {
+        showToast('⏳ Sync already in progress...', 'info');
+        return;
+    }
+
     if (!SHEETBEST_URL || SHEETBEST_URL.includes('YOUR_API_KEY_HERE')) {
         showToast('⚠️ Please configure Sheet.best URL in app.js first!', 'error');
         return;
@@ -118,10 +139,10 @@ async function syncToGoogleSheets() {
         return;
     }
 
+    isSyncing = true;
     updateSyncStatus('syncing', 'Uploading...');
 
     try {
-        // Format data for Sheet.best
         const dataToSend = laptops.map(l => ({
             ID: l.id || '',
             Model: l.model || '',
@@ -138,13 +159,19 @@ async function syncToGoogleSheets() {
             'Last Updated': new Date().toISOString()
         }));
 
-        // Clear existing data (DELETE)
-        await fetch(SHEETBEST_URL, {
+        console.log('📤 Syncing', dataToSend.length, 'laptops...');
+
+        // DELETE all existing data
+        const deleteResponse = await fetch(SHEETBEST_URL, {
             method: 'DELETE'
         });
 
-        // Post new data (POST)
-        const response = await fetch(SHEETBEST_URL, {
+        if (!deleteResponse.ok) {
+            console.warn('DELETE response:', deleteResponse.status);
+        }
+
+        // POST new data
+        const postResponse = await fetch(SHEETBEST_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -152,20 +179,23 @@ async function syncToGoogleSheets() {
             body: JSON.stringify(dataToSend)
         });
 
-        if (response.ok) {
+        if (postResponse.ok) {
             isConnected = true;
             showToast(`✅ Synced ${laptops.length} laptops to Google Sheets!`, 'success');
             updateSyncStatus('online', 'Sheet.best');
         } else {
-            const error = await response.text();
-            showToast('⚠️ Sync failed: ' + error, 'error');
+            const errorText = await postResponse.text();
+            console.error('POST error:', errorText);
+            showToast('⚠️ Sync failed: ' + errorText, 'error');
             updateSyncStatus('offline', 'Error');
         }
 
     } catch (error) {
+        console.error('Sync error:', error);
         showToast('⚠️ Sync failed: ' + error.message, 'error');
         updateSyncStatus('offline', 'Error');
-        console.error('Sync error:', error);
+    } finally {
+        isSyncing = false;
     }
 }
 
@@ -174,29 +204,40 @@ async function syncToGoogleSheets() {
 // ============================================================
 
 async function loadFromGoogleSheets() {
+    if (isSyncing) {
+        showToast('⏳ Sync already in progress...', 'info');
+        return;
+    }
+
     if (!SHEETBEST_URL || SHEETBEST_URL.includes('YOUR_API_KEY_HERE')) {
         showToast('⚠️ Please configure Sheet.best URL in app.js first!', 'error');
         return;
     }
 
+    isSyncing = true;
     updateSyncStatus('syncing', 'Loading...');
 
     try {
+        console.log('📥 Loading from Sheet.best...');
+        
         const response = await fetch(SHEETBEST_URL);
 
         if (!response.ok) {
-            throw new Error('Failed to fetch data');
+            const errorText = await response.text();
+            console.error('Load error:', errorText);
+            throw new Error('Failed to fetch data: ' + response.status);
         }
 
         const data = await response.json();
+        console.log('📥 Loaded', data.length, 'records from Sheet.best');
 
         if (!data || data.length === 0) {
             showToast('ℹ️ No data found in Google Sheet.', 'info');
             updateSyncStatus('online', 'Sheet.best');
+            isSyncing = false;
             return;
         }
 
-        // Convert from Sheet.best format
         const imported = data.map(row => ({
             id: parseInt(row.ID) || nextId++,
             model: row.Model || '',
@@ -212,7 +253,6 @@ async function loadFromGoogleSheets() {
             notes: row.Notes || ''
         }));
 
-        // Merge or replace
         if (laptops.length > 0) {
             const choice = confirm(
                 `Local: ${laptops.length} laptops\n` +
@@ -232,7 +272,6 @@ async function loadFromGoogleSheets() {
             laptops = imported;
         }
 
-        // Update nextId
         const maxId = laptops.reduce((max, l) => Math.max(max, l.id || 0), 0);
         if (maxId >= nextId) nextId = maxId + 1;
 
@@ -243,9 +282,11 @@ async function loadFromGoogleSheets() {
         updateSyncStatus('online', 'Sheet.best');
 
     } catch (error) {
+        console.error('Load error:', error);
         showToast('⚠️ Load failed: ' + error.message, 'error');
         updateSyncStatus('offline', 'Error');
-        console.error('Load error:', error);
+    } finally {
+        isSyncing = false;
     }
 }
 
@@ -524,7 +565,6 @@ function saveLaptop(e) {
     renderAll();
     closeModal();
 
-    // Auto-sync if connected
     if (isConnected) {
         setTimeout(syncToGoogleSheets, 500);
     }
@@ -574,7 +614,7 @@ function exportCSV() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `laptop_inventory_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `shanecodes_inventory_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
     showToast('📥 CSV exported!', 'success');
@@ -618,14 +658,10 @@ document.getElementById('modalOverlay')?.addEventListener('click', (e) => {
 });
 
 // ============================================================
-// CONSOLE READY
+// CONSOLE
 // ============================================================
 
-console.log('✅ Laptop Inventory v2.0 loaded!');
+console.log('✅ ShaneCodes Inventory v2.0');
+console.log('👤 Created by: Shane Nichael Obinguar');
 console.log('📦 ' + laptops.length + ' laptops in inventory.');
 console.log('🔗 Sheet.best URL:', SHEETBEST_URL);
-console.log('📋 Commands:');
-console.log('  - syncToGoogleSheets()  → Push data to cloud');
-console.log('  - loadFromGoogleSheets() → Pull data from cloud');
-console.log('  - exportCSV()           → Export as CSV');
-console.log('  - loadSampleData()      → Load 15 samples');
