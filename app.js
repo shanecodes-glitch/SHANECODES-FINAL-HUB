@@ -1,26 +1,30 @@
 // ============================================================
-// LAPTOP INVENTORY — MAIN APPLICATION v2.0
-// ShaneCodes Theme | Google Sheets Sync
+// LAPTOP INVENTORY — SHEET.BEST VERSION
+// Simple, Reliable, No Authorization Issues!
 // ============================================================
 
 // ============================================================
-// GOOGLE SHEETS CONFIG — REPLACE WITH YOUR URL
+// CONFIGURATION
 // ============================================================
-let GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyb9g_Ry32osd4XnO9M04JkyKemzbIHFg0k4QStdyfLoolZP_n0qTi9pn0a2FyUcwxXew/exec';
+
+// 👇 PALITAN ITO NG SHEET.BEST API URL MO
+const SHEETBEST_URL = 'https://sheet.best/api/sheets/YOUR_API_KEY_HERE';
 
 // ============================================================
 // STATE
 // ============================================================
+
 let laptops = [];
 let nextId = 1;
 let sortField = 'model';
 let sortAsc = true;
 let editingId = null;
-let gsConnected = false;
+let isConnected = false;
 
 // ============================================================
 // DOM REFS
 // ============================================================
+
 const $ = (id) => document.getElementById(id);
 const searchInput = $('searchInput');
 const filterStatus = $('filterStatus');
@@ -31,71 +35,40 @@ const rowCount = $('rowCount');
 // ============================================================
 // STORAGE KEYS
 // ============================================================
-const STORAGE_KEY = 'dimension666_laptops';
-const ID_KEY = 'dimension666_nextId';
-const CONFIG_KEY = 'dimension666_gs_config';
-const THEME_KEY = 'shane_theme';
+
+const STORAGE_KEY = 'laptop_inventory_data';
+const ID_KEY = 'laptop_inventory_nextId';
 
 // ============================================================
-// THEME
+// INIT
 // ============================================================
-function initTheme() {
-    const saved = localStorage.getItem(THEME_KEY) || 'dark';
-    document.documentElement.setAttribute('data-theme', saved);
-    const btn = document.getElementById('themeToggle');
-    if (btn) btn.innerHTML = saved === 'dark' ? '🌙' : '☀️';
-}
-initTheme();
 
-document.getElementById('themeToggle')?.addEventListener('click', () => {
-    const html = document.documentElement;
-    const current = html.getAttribute('data-theme');
-    const next = current === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', next);
-    localStorage.setItem(THEME_KEY, next);
-    document.getElementById('themeToggle').innerHTML = next === 'dark' ? '🌙' : '☀️';
-});
-
-// ============================================================
-// MOBILE MENU
-// ============================================================
-document.getElementById('menuToggle')?.addEventListener('click', () => {
-    document.getElementById('navMenu').classList.toggle('open');
-});
-
-// ============================================================
-// NAV LINKS
-// ============================================================
-document.querySelectorAll('.nav-menu a').forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const target = this.getAttribute('href');
-        document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
-        document.querySelectorAll('.nav-menu a').forEach(l => l.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById('navMenu')?.classList.remove('open');
-    });
-});
-
-// ============================================================
-// NAVBAR SCROLL
-// ============================================================
-window.addEventListener('scroll', () => {
-    const navbar = document.querySelector('.navbar');
-    if (window.scrollY > 50) navbar?.classList.add('scrolled');
-    else navbar?.classList.remove('scrolled');
+document.addEventListener('DOMContentLoaded', () => {
+    loadFromStorage();
+    renderAll();
+    updateSyncStatus('disabled', 'Local Only');
+    
+    if (laptops.length === 0) {
+        setTimeout(loadSampleData, 500);
+    }
+    
+    console.log('🖥️ Laptop Inventory v2.0 (Sheet.best)');
+    console.log(`📦 ${laptops.length} laptops loaded.`);
 });
 
 // ============================================================
 // STORAGE
 // ============================================================
+
 function loadFromStorage() {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
         try {
             laptops = JSON.parse(data);
             laptops.forEach(l => { if (!l.id) l.id = nextId++; });
-        } catch (e) { laptops = []; }
+        } catch (e) {
+            laptops = [];
+        }
     }
     const idData = localStorage.getItem(ID_KEY);
     if (idData) nextId = parseInt(idData, 10) || 1;
@@ -107,35 +80,15 @@ function saveToStorage() {
 }
 
 // ============================================================
-// GOOGLE SHEETS CONFIG
-// ============================================================
-function loadGoogleConfig() {
-    const data = localStorage.getItem(CONFIG_KEY);
-    if (data) {
-        try {
-            const config = JSON.parse(data);
-            if (config.url) {
-                GOOGLE_SCRIPT_URL = config.url;
-                gsConnected = true;
-            }
-        } catch (e) {}
-    }
-}
-loadGoogleConfig();
-
-function saveGoogleConfig(url) {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ url }));
-    GOOGLE_SCRIPT_URL = url;
-    gsConnected = true;
-}
-
-// ============================================================
 // SYNC STATUS
 // ============================================================
+
 function updateSyncStatus(status, label) {
     const dot = document.getElementById('syncDot');
     const labelEl = document.getElementById('syncLabel');
     const footerEl = document.getElementById('footerSyncStatus');
+
+    if (!dot || !labelEl) return;
 
     dot.className = 'dot';
     const statusMap = {
@@ -151,44 +104,15 @@ function updateSyncStatus(status, label) {
 }
 
 // ============================================================
-// CONNECT GOOGLE SHEETS
+// SHEET.BEST SYNC — PUSH DATA
 // ============================================================
-function connectGoogleSheets() {
-    const url = document.getElementById('setupScriptUrl').value.trim();
-    if (!url || !url.includes('script.google.com')) {
-        showToast('⚠️ Please enter a valid Google Apps Script URL.', 'error');
-        return;
-    }
-    saveGoogleConfig(url);
-    document.getElementById('setupWizard').classList.remove('active');
-    updateSyncStatus('online', 'Google Sheets');
-    showToast('✅ Google Sheets connected!', 'success');
-    loadFromGoogleSheets();
-}
 
-function skipSetup() {
-    document.getElementById('setupWizard').classList.remove('active');
-    updateSyncStatus('disabled', 'Local Only');
-    if (laptops.length === 0) loadSampleData();
-    showToast('ℹ️ Working in local mode.', 'info');
-}
-
-function showSetup() {
-    const wizard = document.getElementById('setupWizard');
-    wizard.classList.toggle('active');
-    if (wizard.classList.contains('active')) {
-        document.getElementById('setupScriptUrl').value = GOOGLE_SCRIPT_URL;
-    }
-}
-
-// ============================================================
-// SYNC TO GOOGLE SHEETS
-// ============================================================
 async function syncToGoogleSheets() {
-    if (!GOOGLE_SCRIPT_URL || !gsConnected) {
-        showToast('⚠️ Not connected to Google Sheets. Click Settings ⚙️ to connect.', 'error');
+    if (!SHEETBEST_URL || SHEETBEST_URL.includes('YOUR_API_KEY_HERE')) {
+        showToast('⚠️ Please configure Sheet.best URL in app.js first!', 'error');
         return;
     }
+
     if (laptops.length === 0) {
         showToast('⚠️ No data to sync!', 'error');
         return;
@@ -197,99 +121,138 @@ async function syncToGoogleSheets() {
     updateSyncStatus('syncing', 'Uploading...');
 
     try {
-        await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'sync', laptops })
+        // Format data for Sheet.best
+        const dataToSend = laptops.map(l => ({
+            ID: l.id || '',
+            Model: l.model || '',
+            Serial: l.serial || '',
+            RAM: l.ram || '',
+            Storage: l.storage || '',
+            'Additional Storage': l.additionalStorage || '',
+            Quantity: l.quantity || 1,
+            Status: l.status || '',
+            Days: l.daysInProgress || 0,
+            Issue: l.issue || '',
+            'Missing Parts': l.missingParts || '',
+            Notes: l.notes || '',
+            'Last Updated': new Date().toISOString()
+        }));
+
+        // Clear existing data (DELETE)
+        await fetch(SHEETBEST_URL, {
+            method: 'DELETE'
         });
-        showToast('✅ Sync complete! Check your Google Sheet.', 'success');
-        updateSyncStatus('online', 'Google Sheets');
+
+        // Post new data (POST)
+        const response = await fetch(SHEETBEST_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dataToSend)
+        });
+
+        if (response.ok) {
+            isConnected = true;
+            showToast(`✅ Synced ${laptops.length} laptops to Google Sheets!`, 'success');
+            updateSyncStatus('online', 'Sheet.best');
+        } else {
+            const error = await response.text();
+            showToast('⚠️ Sync failed: ' + error, 'error');
+            updateSyncStatus('offline', 'Error');
+        }
+
     } catch (error) {
         showToast('⚠️ Sync failed: ' + error.message, 'error');
         updateSyncStatus('offline', 'Error');
+        console.error('Sync error:', error);
     }
 }
 
 // ============================================================
-// LOAD FROM GOOGLE SHEETS
+// SHEET.BEST SYNC — LOAD DATA
 // ============================================================
+
 async function loadFromGoogleSheets() {
-    if (!GOOGLE_SCRIPT_URL || !gsConnected) {
-        showToast('⚠️ Not connected to Google Sheets.', 'error');
+    if (!SHEETBEST_URL || SHEETBEST_URL.includes('YOUR_API_KEY_HERE')) {
+        showToast('⚠️ Please configure Sheet.best URL in app.js first!', 'error');
         return;
     }
 
     updateSyncStatus('syncing', 'Loading...');
 
     try {
-        const response = await fetch(GOOGLE_SCRIPT_URL);
-        if (!response.ok) throw new Error('Failed to fetch');
+        const response = await fetch(SHEETBEST_URL);
 
-        const result = await response.json();
-        if (!result.success || !result.laptops) {
+        if (!response.ok) {
+            throw new Error('Failed to fetch data');
+        }
+
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
             showToast('ℹ️ No data found in Google Sheet.', 'info');
-            updateSyncStatus('online', 'Google Sheets');
+            updateSyncStatus('online', 'Sheet.best');
             return;
         }
 
-        const imported = result.laptops.map(l => ({
-            id: parseInt(l.ID) || nextId++,
-            model: l.Model || '',
-            serial: l.Serial || '',
-            ram: l.RAM || '8GB',
-            storage: l.Storage || '256GB SSD',
-            additionalStorage: l.Additional_Storage || '',
-            quantity: parseInt(l.Quantity) || 1,
-            status: l.Status || 'pending',
-            daysInProgress: parseInt(l.Days) || 0,
-            issue: l.Issue || '',
-            missingParts: l.Missing_Parts || '',
-            notes: l.Notes || ''
+        // Convert from Sheet.best format
+        const imported = data.map(row => ({
+            id: parseInt(row.ID) || nextId++,
+            model: row.Model || '',
+            serial: row.Serial || '',
+            ram: row.RAM || '8GB',
+            storage: row.Storage || '256GB SSD',
+            additionalStorage: row['Additional Storage'] || '',
+            quantity: parseInt(row.Quantity) || 1,
+            status: row.Status || 'pending',
+            daysInProgress: parseInt(row.Days) || 0,
+            issue: row.Issue || '',
+            missingParts: row['Missing Parts'] || '',
+            notes: row.Notes || ''
         }));
 
-        if (imported.length === 0) {
-            showToast('ℹ️ No data in Google Sheet.', 'info');
-            updateSyncStatus('online', 'Google Sheets');
-            return;
-        }
-
+        // Merge or replace
         if (laptops.length > 0) {
             const choice = confirm(
                 `Local: ${laptops.length} laptops\n` +
                 `Google Sheets: ${imported.length} laptops\n\n` +
-                'OK = Replace with Google Sheets data\n' +
+                'OK = Replace local data with Google Sheets data\n' +
                 'Cancel = Merge (keep both)'
             );
             if (choice) {
                 laptops = imported;
             } else {
-                const existing = new Set(laptops.map(l => l.id));
+                const existingIds = new Set(laptops.map(l => l.id));
                 imported.forEach(l => {
-                    if (!existing.has(l.id)) laptops.push(l);
+                    if (!existingIds.has(l.id)) laptops.push(l);
                 });
             }
         } else {
             laptops = imported;
         }
 
+        // Update nextId
         const maxId = laptops.reduce((max, l) => Math.max(max, l.id || 0), 0);
         if (maxId >= nextId) nextId = maxId + 1;
 
         saveToStorage();
         renderAll();
+        isConnected = true;
         showToast(`✅ Loaded ${imported.length} laptops from Google Sheets!`, 'success');
-        updateSyncStatus('online', 'Google Sheets');
+        updateSyncStatus('online', 'Sheet.best');
 
     } catch (error) {
         showToast('⚠️ Load failed: ' + error.message, 'error');
         updateSyncStatus('offline', 'Error');
+        console.error('Load error:', error);
     }
 }
 
 // ============================================================
 // SAMPLE DATA
 // ============================================================
+
 function loadSampleData() {
     if (laptops.length > 0 && !confirm('Add 15 sample laptops?')) return;
 
@@ -330,6 +293,7 @@ function loadSampleData() {
 // ============================================================
 // RENDER FUNCTIONS
 // ============================================================
+
 function escapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
@@ -481,6 +445,7 @@ function sortBy(field) {
 // ============================================================
 // CRUD OPERATIONS
 // ============================================================
+
 function openAddModal() {
     editingId = null;
     document.getElementById('modalTitle').textContent = '➕ Add Laptop';
@@ -559,7 +524,10 @@ function saveLaptop(e) {
     renderAll();
     closeModal();
 
-    if (gsConnected) setTimeout(syncToGoogleSheets, 500);
+    // Auto-sync if connected
+    if (isConnected) {
+        setTimeout(syncToGoogleSheets, 500);
+    }
 }
 
 function deleteLaptop(id) {
@@ -568,12 +536,15 @@ function deleteLaptop(id) {
     saveToStorage();
     renderAll();
     showToast('🗑️ Laptop deleted.', 'info');
-    if (gsConnected) setTimeout(syncToGoogleSheets, 500);
+    if (isConnected) {
+        setTimeout(syncToGoogleSheets, 500);
+    }
 }
 
 // ============================================================
 // EXPORT CSV
 // ============================================================
+
 function exportCSV() {
     if (laptops.length === 0) {
         showToast('⚠️ No data to export.', 'error');
@@ -612,8 +583,13 @@ function exportCSV() {
 // ============================================================
 // TOAST SYSTEM
 // ============================================================
+
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
+    if (!container) {
+        console.log('Toast:', message);
+        return;
+    }
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
@@ -628,6 +604,7 @@ function showToast(message, type = 'info') {
 // ============================================================
 // KEYBOARD SHORTCUTS
 // ============================================================
+
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
@@ -641,27 +618,14 @@ document.getElementById('modalOverlay')?.addEventListener('click', (e) => {
 });
 
 // ============================================================
-// AUTO-LOAD SAMPLES
+// CONSOLE READY
 // ============================================================
-loadFromStorage();
 
-if (laptops.length === 0 && !gsConnected) {
-    setTimeout(() => {
-        if (laptops.length === 0) {
-            const wizard = document.getElementById('setupWizard');
-            if (!wizard.classList.contains('active')) {
-                wizard.classList.add('active');
-            }
-        }
-    }, 500);
-} else if (laptops.length > 0) {
-    renderAll();
-    updateSyncStatus(gsConnected ? 'online' : 'disabled', gsConnected ? 'Google Sheets' : 'Local Only');
-    document.getElementById('mainApp').style.display = 'block';
-} else {
-    document.getElementById('setupWizard').classList.add('active');
-}
-
-console.log('🖥️ Laptop Inventory v2.0 — ShaneCodes Theme');
-console.log(`📦 ${laptops.length} laptops loaded.`);
-console.log('☁️ Google Sheets:', gsConnected ? 'Connected' : 'Not connected');
+console.log('✅ Laptop Inventory v2.0 loaded!');
+console.log('📦 ' + laptops.length + ' laptops in inventory.');
+console.log('🔗 Sheet.best URL:', SHEETBEST_URL);
+console.log('📋 Commands:');
+console.log('  - syncToGoogleSheets()  → Push data to cloud');
+console.log('  - loadFromGoogleSheets() → Pull data from cloud');
+console.log('  - exportCSV()           → Export as CSV');
+console.log('  - loadSampleData()      → Load 15 samples');
