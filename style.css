@@ -1,9 +1,10 @@
 /* ============================================================
-   SHANECODES THEME — LAPTOP INVENTORY v2.0
+   SHANECODES INVENTORY — LAPTOP MANAGEMENT SYSTEM
+   Created by: Shane Nichael Obinguar
    ============================================================ */
 
 /* ============================================================
-   CSS VARIABLES — THEME SYSTEM
+   CSS VARIABLES
    ============================================================ */
 :root {
     --bg-primary: #f8f9fc;
@@ -23,8 +24,6 @@
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
-    --glass-bg: rgba(255, 255, 255, 0.5);
-    --glass-border: rgba(255, 255, 255, 0.3);
     --radius: 12px;
     --radius-sm: 8px;
     --transition: all 0.3s ease;
@@ -42,8 +41,6 @@
     --border-color: rgba(255, 255, 255, 0.06);
     --shadow-color: rgba(0, 0, 0, 0.4);
     --shadow-hover: rgba(0, 0, 0, 0.6);
-    --glass-bg: rgba(20, 29, 43, 0.6);
-    --glass-border: rgba(255, 255, 255, 0.05);
 }
 
 /* ============================================================
@@ -100,6 +97,7 @@ a { text-decoration: none; color: inherit; }
     color: var(--text-muted);
     max-width: 600px;
     margin: 0 auto;
+    font-size: 0.95rem;
 }
 
 /* ============================================================
@@ -288,7 +286,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ============================================================
-   DASHBOARD SECTION
+   DASHBOARD
    ============================================================ */
 .dashboard-section {
     padding: 100px 0 40px;
@@ -362,7 +360,7 @@ a { text-decoration: none; color: inherit; }
 .part-item .count.ordered { color: var(--success); }
 
 /* ============================================================
-   INVENTORY SECTION
+   INVENTORY
    ============================================================ */
 .inventory-section {
     padding: 40px 0 80px;
@@ -601,71 +599,80 @@ tbody td {
 }
 
 /* ============================================================
-   SETUP WIZARD
+   ABOUT SECTION
    ============================================================ */
-.setup-wizard {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(12px);
-    z-index: 9999;
-    display: none;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-}
-.setup-wizard.active { display: flex; }
-.setup-card {
+.about-section {
+    padding: 60px 0;
     background: var(--bg-secondary);
+}
+.about-box {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    padding: 2rem 2.5rem;
+    background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
-    max-width: 520px;
-    width: 100%;
-    padding: 2.5rem;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
-    animation: modalIn 0.3s ease;
+    backdrop-filter: blur(10px);
+    flex-wrap: wrap;
 }
-.setup-card h2 {
-    font-size: 1.5rem;
-    margin-bottom: 0.2rem;
+.about-icon {
+    font-size: 3.5rem;
+    background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
-.setup-card .setup-subtitle {
+.about-content {
+    flex: 1;
+    min-width: 200px;
+}
+.about-content h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+.about-content p {
     color: var(--text-muted);
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
 }
-.setup-card .form-group { margin-bottom: 1rem; }
-.setup-card .form-group label {
-    font-weight: 600;
+.about-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.8rem;
+    flex-wrap: wrap;
     font-size: 0.85rem;
+    color: var(--text-secondary);
 }
-.setup-card .form-group input {
-    width: 100%;
-    padding: 0.7rem 1rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
+.about-meta strong {
     color: var(--text-primary);
-    font-size: 0.85rem;
 }
-.setup-card .form-group input:focus {
-    outline: none;
+.about-social {
+    display: flex;
+    gap: 1rem;
+    font-size: 1.5rem;
+}
+.about-social a {
+    padding: 0.5rem;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    text-decoration: none;
+}
+.about-social a:hover {
+    transform: translateY(-3px);
     border-color: var(--accent);
-}
-.setup-card .hint {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-top: 0.3rem;
-}
-.setup-card .btn { width: 100%; justify-content: center; padding: 0.8rem; }
-.setup-note {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-align: center;
+    box-shadow: var(--shadow-hover);
 }
 
 /* ============================================================
@@ -802,6 +809,9 @@ tbody td {
     .sync-status { font-size: 0.6rem; padding: 0.2rem 0.6rem; }
     .nav-logo { font-size: 1rem; }
     .logo-badge { font-size: 0.5rem; }
+    .about-box { flex-direction: column; text-align: center; padding: 1.5rem; }
+    .about-meta { justify-content: center; }
+    .about-social { justify-content: center; }
 }
 
 @media (max-width: 480px) {
@@ -809,6 +819,5 @@ tbody td {
     .stat-card { padding: 0.8rem 1rem; }
     .stat-number { font-size: 1.5rem; }
     .stat-icon { font-size: 1.5rem; }
-    .setup-card { padding: 1.5rem; }
     .toast { min-width: unset; width: calc(100% - 40px); }
 }
